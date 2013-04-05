@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-http="http://www.springframework.org/schema/integration/http"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration-2.2.xsd
+		http://www.springframework.org/schema/integration/http http://www.springframework.org/schema/integration/http/spring-integration-http-2.2.xsd">
+
+	<import resource="classpath:/META-INF/spring/integration-context.xml"/>
+	
+	<int-http:inbound-gateway
+		id="http.endpoint" 
+		path="/simpleEntity"
+		request-channel="http.inbound.channel"
+		request-payload-type="java.lang.String"
+		supported-methods="GET,PUT"/>
+	
+	<int:channel id="http.inbound.channel"/>
+
+	<int:header-value-router input-channel="http.inbound.channel" header-name="http_requestMethod">
+		<int:mapping value="GET" channel="http.get.inbound.channel"/>
+		<int:mapping value="PUT" channel="http.put.inbound.channel"/>
+	</int:header-value-router>
+
+	<int:channel id="http.get.inbound.channel"/>
+	
+	<!-- route get based on id -->
+	<int:router input-channel="http.get.inbound.channel" expression="payload['id'] == null">
+		<int:mapping value="true" channel="inbound.retrieveall.channel"/>
+		<int:mapping value="false" channel="http.get.byid.inbound.channel"/>
+	</int:router>
+	
+	<int:channel id="http.get.byid.inbound.channel"/>
+	
+	<int:chain input-channel="http.get.byid.inbound.channel" output-channel="inbound.retrieve.channel">
+		<!-- extract the id from the map -->
+		<int:transformer expression="payload['id']"/>
+		<!-- convert to a long -->
+		<int:transformer expression="T(Long).parseLong(payload)"/>
+	</int:chain>
+
+	<int:channel id="http.put.inbound.channel"/>
+	
+	<int:json-to-object-transformer input-channel="http.put.inbound.channel" output-channel="inbound.store.channel"
+		type="de.incompleteco.spring.jpa.domain.SimpleEntity"/>
+
+	<bean class="org.springframework.integration.http.inbound.UriPathHandlerMapping"/>
+
+</beans>
